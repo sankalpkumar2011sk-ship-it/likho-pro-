@@ -1,0 +1,68 @@
+name: Build Likho Pro APK from ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Likho_Pro_Professional_Android_Project.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Extract project ZIP
+        run: |
+          unzip -q Likho_Pro_Professional_Android_Project.zip -d unpacked
+          echo "PROJECT_DIR=unpacked/Likho_Pro_Professional_Android_Project" >> "$GITHUB_ENV"
+
+      - name: Install project dependencies
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project
+        run: npm install
+
+      - name: Bundle native bridge
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project
+        run: npm run build:bridge
+
+      - name: Generate Android project
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project
+        run: npx cap add android
+
+      - name: Add native Android file integration
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project
+        run: node scripts/patch-android.mjs
+
+      - name: Sync Capacitor
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: unpacked/Likho_Pro_Professional_Android_Project/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Likho-Pro-Android-APK
+          path: unpacked/Likho_Pro_Professional_Android_Project/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
